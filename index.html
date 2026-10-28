@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SMTL – QC Checker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --text:#1c2230; --muted:#6b7385; --line:#e3e6ec;
+          --accent:#2557d6; --bad:#c62828; --badbg:#fdecec; --good:#1b7f3b; --warn:#a15c00; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14171d; --card:#1c2029; --text:#e8ebf2; --muted:#9aa3b5; --line:#2c3240;
+            --accent:#6c92ff; --bad:#ff7b7b; --badbg:#3a2020; --good:#5fd38a; --warn:#f0b35a; } }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--text); }
+  main { max-width:1100px; margin:0 auto; padding:28px 18px 60px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  p.sub { color:var(--muted); margin:0 0 20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:18px; }
+  .drop { border:2px dashed var(--line); border-radius:10px; padding:26px; text-align:center; cursor:pointer; color:var(--muted); }
+  .drop.over { border-color:var(--accent); color:var(--accent); }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px; }
+  button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:9px 16px; font-size:14px; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--accent); border:1px solid var(--accent); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+  .stat { border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .stat b { display:block; font-size:24px; }
+  .stat span { color:var(--muted); font-size:13px; }
+  .stat.bad b { color:var(--bad); } .stat.good b { color:var(--good); } .stat.warn b { color:var(--warn); }
+  h2 { font-size:17px; margin:0 0 10px; }
+  .tablewrap { overflow-x:auto; }
+  table { border-collapse:collapse; width:100%; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; font-size:13px; }
+  td.num, th.num { text-align:right; white-space:nowrap; }
+  .tag { background:var(--badbg); color:var(--bad); border-radius:6px; padding:2px 8px; font-size:12px; font-weight:600; }
+  .err { color:var(--bad); margin-top:10px; }
+  .empty { color:var(--good); }
+  input[type=search] { padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--text); min-width:240px; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>QC Checker</h1>
+  <p class="sub">Upload your Excel file to automatically identify unmatched data. A time difference of up to ±1 Second will be acceptable</p>
+
+  <div class="card">
+    <div class="drop" id="drop">Drop your Excel file here, or click to choose (.xlsx / .xls / .csv)</div>
+    <input type="file" id="file" accept=".xlsx,.xlsm,.xls,.csv" class="hidden">
+    <div class="row">
+      <span id="fname" style="color:var(--muted)">No file selected</span>
+      <label style="color:var(--muted)">Allowed difference (± sec)
+        <input type="number" id="tol" value="1" min="0" style="width:64px;padding:6px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text)">
+      </label>
+      <button id="run" disabled>Check durations</button>
+    </div>
+    <div class="err" id="err"></div>
+  </div>
+
+  <div id="results" class="hidden">
+    <div class="card"><div class="stats" id="stats"></div></div>
+
+    <div class="card">
+      <h2>Not Matched</h2>
+      <div class="row" style="margin:0 0 10px">
+        <input type="search" id="q" placeholder="Search ad name…">
+        <button class="ghost" id="dl">Download as Excel</button>
+      </div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>H = Ad_Name</th><th class="num">In name</th><th class="num">G = duration</th><th class="num">Times</th><th>Status</th></tr></thead>
+        <tbody id="nm"></tbody>
+      </table></div>
+      <p class="empty hidden" id="allgood">All durations match.</p>
+    </div>
+
+    <div class="card hidden" id="nosufBox">
+      <h2>No duration found in the ad name</h2>
+      <p style="color:var(--muted);margin-top:0">These names don’t end with “-digits”, so they can’t be compared.</p>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Row</th><th>H = Ad_Name</th><th class="num">G = duration</th></tr></thead>
+        <tbody id="nosuf"></tbody></table></div>
+    </div>
+
+    <div class="card hidden" id="badBox">
+      <h2>Duration cell unreadable</h2>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Row</th><th>H = Ad_Name</th><th class="num">G = duration</th></tr></thead>
+        <tbody id="bad"></tbody></table></div>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm = s => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+let file = null, result = null;
+
+// ---------- file picking ----------
+function setFile(f){ file = f || null; $('fname').textContent = f ? f.name : 'No file selected'; $('run').disabled = !f; $('err').textContent = ''; }
+$('drop').onclick = () => $('file').click();
+$('file').onchange = e => setFile(e.target.files[0]);
+['dragover','dragenter'].forEach(ev => $('drop').addEventListener(ev, e => { e.preventDefault(); $('drop').classList.add('over'); }));
+['dragleave','drop'].forEach(ev => $('drop').addEventListener(ev, e => { e.preventDefault(); $('drop').classList.remove('over'); }));
+$('drop').addEventListener('drop', e => setFile(e.dataTransfer.files[0]));
+
+// ---------- logic ----------
+function toSeconds(v){
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  if (s === '') return null;
+  if (/^\d+(\.\d+)?$/.test(s)) return Math.round(parseFloat(s));
+  let m = s.match(/^(\d+):(\d{1,2})(?::(\d{1,2}))?$/);        // mm:ss or hh:mm:ss
+  if (m) return m[3] !== undefined ? (+m[1])*3600 + (+m[2])*60 + (+m[3]) : (+m[1])*60 + (+m[2]);
+  return null;
+}
+
+function analyse(rows, tol){       // rows = array of arrays, rows[0] = header
+  const header = rows[0] || [];
+  let nameIdx = header.findIndex(h => norm(h) === 'adname');
+  let durIdx  = header.findIndex(h => norm(h) === 'duration');
+  if (nameIdx < 0) nameIdx = 7;    // column H
+  if (durIdx  < 0) durIdx  = 6;    // column G
+  if (header.length <= Math.max(nameIdx, durIdx)) throw new Error('Could not find the Ad_Name (H) and duration (G) columns.');
+
+  const out = { matched:0, notMatched:[], noSuffix:[], badDur:[] };
+  for (let i = 1; i < rows.length; i++){
+    const r = rows[i] || [];
+    const name = String(r[nameIdx] ?? '').trim();
+    if (!name) continue;
+    const excelRow = i + 1;
+    const raw = r[durIdx] ?? '';
+    const m = name.match(/-\s*(\d+)\s*$/);       // digits after the LAST hyphen, at the very end
+    if (!m){ out.noSuffix.push({row:excelRow, name, dur:raw}); continue; }
+    const inName = parseInt(m[1], 10);
+    const actual = toSeconds(raw);
+    if (actual === null){ out.badDur.push({row:excelRow, name, dur:raw}); continue; }
+    if (Math.abs(actual - inName) <= tol) out.matched++;     // within ± tolerance = matched
+    else out.notMatched.push({row:excelRow, name, inName, dur:actual, status:'wrong'});
+  }
+  // group identical ad names (ignores extra spaces and upper/lower case)
+  const groups = new Map();
+  for (const x of out.notMatched){
+    const key = x.name.replace(/\s+/g, ' ').toLowerCase();
+    if (!groups.has(key)) groups.set(key, { name:x.name, inName:x.inName, count:0, durs:new Map(), rows:[] });
+    const g = groups.get(key);
+    g.count++; g.rows.push(x.row);
+    g.durs.set(x.dur, (g.durs.get(x.dur) || 0) + 1);
+  }
+  out.groups = [...groups.values()].sort((a, b) => b.count - a.count);   // most repeated first
+  out.total = out.matched + out.notMatched.length + out.noSuffix.length + out.badDur.length;
+  return out;
+}
+
+// ---------- rendering ----------
+function renderNM(filter = ''){
+  const f = filter.toLowerCase();
+  const rows = result.groups.filter(g => g.name.toLowerCase().includes(f));
+  $('nm').innerHTML = rows.map(g => {
+    const durs = [...g.durs].map(([d, c]) => c > 1 ? `${d} (×${c})` : `${d}`).join(', ');
+    const shown = g.rows.slice(0, 20).join(', ') + (g.rows.length > 20 ? ', …' : '');
+    return `<tr><td>${esc(g.name)}<div style="color:var(--muted);font-size:12px">Rows: ${shown}</div></td>
+      <td class="num">${g.inName}</td><td class="num">${esc(durs)}</td>
+      <td class="num"><b>${g.count}</b></td><td><span class="tag">wrong</span></td></tr>`;
+  }).join('');
+  $('allgood').classList.toggle('hidden', result.notMatched.length !== 0);
+}
+function render(){
+  const r = result;
+  $('stats').innerHTML = `
+    <div class="stat"><b>${r.total}</b><span>Ads checked</span></div>
+    <div class="stat good"><b>${r.matched}</b><span>Matched</span></div>
+    <div class="stat bad"><b>${r.notMatched.length}</b><span>Not matched (${r.groups.length} unique names)</span></div>
+    <div class="stat warn"><b>${r.noSuffix.length + r.badDur.length}</b><span>Could not compare</span></div>`;
+  renderNM($('q').value);
+  const simple = a => a.map(x => `<tr><td>${x.row}</td><td>${esc(x.name)}</td><td class="num">${esc(x.dur)}</td></tr>`).join('');
+  $('nosufBox').classList.toggle('hidden', !r.noSuffix.length); $('nosuf').innerHTML = simple(r.noSuffix);
+  $('badBox').classList.toggle('hidden', !r.badDur.length);     $('bad').innerHTML  = simple(r.badDur);
+  $('results').classList.remove('hidden');
+}
+
+// ---------- run ----------
+$('run').onclick = async () => {
+  $('err').textContent = '';
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type:'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:false, defval:'' });
+    const tol = Math.max(0, parseInt($('tol').value, 10) || 0);
+    result = analyse(rows, tol);
+    render();
+  } catch (e) { $('err').textContent = e.message || String(e); }
+};
+$('q').oninput = e => renderNM(e.target.value);
+
+// ---------- export ----------
+$('dl').onclick = () => {
+  const data = result.groups.map(g => ({
+    'H=Ad_Name': g.name, 'Duration in name': g.inName,
+    'G=duration': [...g.durs].map(([d, c]) => c > 1 ? `${d} (x${c})` : `${d}`).join(', '),
+    'Times': g.count, 'Excel Rows': g.rows.join(', '), 'Status': 'wrong' }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = [{wch:70},{wch:16},{wch:18},{wch:8},{wch:40},{wch:10}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Not Matched');
+  XLSX.writeFile(wb, 'not_matched.xlsx');
+};
+</script>
+</body>
+</html>
