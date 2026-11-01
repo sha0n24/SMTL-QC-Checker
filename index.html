@@ -6,53 +6,134 @@
 <title>SMTL – QC Checker</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  :root { --bg:#f6f7f9; --card:#fff; --text:#1c2230; --muted:#6b7385; --line:#e3e6ec;
-          --accent:#2557d6; --bad:#c62828; --badbg:#fdecec; --good:#1b7f3b; --warn:#a15c00; }
+  :root {
+    --bg:#f3f5f9; --card:#ffffff; --text:#0f1b2d; --muted:#5b6b82; --line:#e1e6ee; --line-strong:#cfd7e3;
+    --accent:#1d4ed8; --accent-hover:#1e40af; --accent-soft:#eaf0ff;
+    --bad:#b42318; --badbg:#fdeceb; --good:#067647; --goodbg:#e7f6ee;
+    --warn:#8a5a00; --warnbg:#fff4d6; --head:#f7f9fc;
+    --shadow:0 1px 2px rgba(15,27,45,.06), 0 4px 14px rgba(15,27,45,.04);
+  }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#14171d; --card:#1c2029; --text:#e8ebf2; --muted:#9aa3b5; --line:#2c3240;
-            --accent:#6c92ff; --bad:#ff7b7b; --badbg:#3a2020; --good:#5fd38a; --warn:#f0b35a; } }
+    :root {
+      --bg:#0e131b; --card:#161c27; --text:#e6ebf3; --muted:#93a1b8; --line:#242d3b; --line-strong:#33405a;
+      --accent:#6b93ff; --accent-hover:#8aa9ff; --accent-soft:#1b2640;
+      --bad:#ff8a80; --badbg:#3a1f1f; --good:#5fd38a; --goodbg:#16301f;
+      --warn:#f0b35a; --warnbg:#3a3014; --head:#1a2230;
+      --shadow:0 1px 2px rgba(0,0,0,.4);
+    } }
   * { box-sizing:border-box; }
-  body { margin:0; font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--text); }
-  main { max-width:1100px; margin:0 auto; padding:28px 18px 60px; }
-  h1 { font-size:22px; margin:0 0 4px; }
-  p.sub { color:var(--muted); margin:0 0 20px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:18px; }
-  .drop { border:2px dashed var(--line); border-radius:10px; padding:26px; text-align:center; cursor:pointer; color:var(--muted); }
-  .drop.over { border-color:var(--accent); color:var(--accent); }
-  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px; }
-  button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:9px 16px; font-size:14px; cursor:pointer; }
-  button.ghost { background:transparent; color:var(--accent); border:1px solid var(--accent); }
-  button:disabled { opacity:.5; cursor:not-allowed; }
-  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
-  .stat { border:1px solid var(--line); border-radius:10px; padding:12px; }
-  .stat b { display:block; font-size:24px; }
-  .stat span { color:var(--muted); font-size:13px; }
-  .stat.bad b { color:var(--bad); } .stat.good b { color:var(--good); } .stat.warn b { color:var(--warn); }
-  h2 { font-size:17px; margin:0 0 10px; }
-  .tablewrap { overflow-x:auto; }
+  body { margin:0; font:14px/1.55 "Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased; }
+  main { max-width:1120px; margin:0 auto; padding:36px 24px 72px; }
+  h1 { font-size:24px; font-weight:700; letter-spacing:-.01em; margin:0 0 6px; padding-left:14px; border-left:4px solid var(--accent); line-height:1.2; }
+  p.sub { color:var(--muted); margin:0 0 26px; padding-left:18px; max-width:760px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:22px; margin-bottom:20px; box-shadow:var(--shadow); }
+  .drop { border:1.5px dashed var(--line-strong); background:var(--head); border-radius:10px; padding:34px 20px; text-align:center; cursor:pointer; color:var(--muted); font-weight:500; transition:all .15s ease; }
+  .drop:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+  .drop.over { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+  .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:16px; }
+  .row.tight { margin:0 0 14px; }
+  .fname { color:var(--muted); font-size:13px; flex:1; min-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lbl { color:var(--muted); font-size:13px; display:flex; align-items:center; gap:8px; }
+  .tol { width:68px; padding:7px 9px; border:1px solid var(--line-strong); border-radius:8px; background:var(--card); color:var(--text); font:inherit; }
+  .tol:focus, input[type=search]:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  button { background:var(--accent); color:#fff; border:1px solid transparent; border-radius:8px; padding:9px 18px; font:inherit; font-weight:600; cursor:pointer; transition:background .15s ease; }
+  button:hover:not(:disabled) { background:var(--accent-hover); }
+  button.ghost { background:var(--card); color:var(--accent); border:1px solid var(--line-strong); }
+  button.ghost:hover:not(:disabled) { background:var(--accent-soft); border-color:var(--accent); }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; }
+  .stat { position:relative; overflow:hidden; border-radius:12px; padding:18px 20px; color:#fff; box-shadow:var(--shadow);
+    background:linear-gradient(100deg,#0f1a3a 0%,#1b3a8a 55%,#3a2f8f 100%); }
+  .stat::before, .stat::after { content:""; position:absolute; border-radius:50%; background:rgba(255,255,255,.09); pointer-events:none; }
+  .stat::before { width:90px; height:90px; right:28px; bottom:-52px; }
+  .stat::after { width:110px; height:110px; right:-34px; top:-58px; }
+  .stat b { position:relative; z-index:1; display:block; font-size:30px; font-weight:700; letter-spacing:-.02em; line-height:1.15; color:#fff; }
+  .stat span { position:relative; z-index:1; color:rgba(255,255,255,.8); font-size:12px; font-weight:500; }
+  .stat.good { background:linear-gradient(100deg,#05301c 0%,#0b6b3f 55%,#1a9a5a 100%); }
+  .stat.bad { background:linear-gradient(100deg,#3b0a0a 0%,#a31d1d 55%,#d94141 100%); }
+  .stat.warn { background:linear-gradient(100deg,#2e1a12 0%,#6d4228 55%,#a06a43 100%); }
+  .stat.maybe { background:linear-gradient(100deg,#b7791f 0%,#e8b100 55%,#ffd23f 100%); }
+  .stat.maybe b { color:#2b1d00; } .stat.maybe span { color:rgba(43,29,0,.8); }
+  h2 { font-size:16px; font-weight:700; margin:0 0 14px; letter-spacing:-.005em; }
+  .hint { color:var(--muted); margin:-6px 0 14px; }
+  .tablewrap { overflow-x:auto; border:1px solid var(--line); border-radius:10px; }
   table { border-collapse:collapse; width:100%; }
-  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
-  th { color:var(--muted); font-weight:600; font-size:13px; }
-  td.num, th.num { text-align:right; white-space:nowrap; }
-  .tag { background:var(--badbg); color:var(--bad); border-radius:6px; padding:2px 8px; font-size:12px; font-weight:600; }
-  .err { color:var(--bad); margin-top:10px; }
-  .empty { color:var(--good); }
-  input[type=search] { padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--text); min-width:240px; }
+  th, td { text-align:left; padding:11px 14px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { background:var(--head); color:var(--muted); font-weight:600; font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; white-space:nowrap; }
+  tbody tr:last-child td { border-bottom:0; }
+  tbody tr:hover td { background:var(--head); }
+  td.num, th.num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .tag { display:inline-block; background:var(--badbg); color:var(--bad); border-radius:999px; padding:3px 11px; font-size:12px; font-weight:600; white-space:nowrap; }
+  .tag.maybe { background:var(--warnbg); color:var(--warn); }
+  tr.maybe-row td { background:var(--warnbg); }
+  tr.maybe-row:hover td { background:var(--warnbg); filter:brightness(.97); }
+  .namecell { display:flex; gap:12px; align-items:flex-start; justify-content:space-between; }
+  .namecell > div:first-child { font-weight:500; word-break:break-word; }
+  .rows { color:var(--muted); font-size:12px; font-weight:400; margin-top:2px; }
+  .copy { background:var(--card); color:var(--muted); border:1px solid var(--line-strong); padding:3px 11px; font-size:12px; font-weight:600; border-radius:6px; flex-shrink:0; }
+  .copy:hover:not(:disabled) { background:var(--accent-soft); color:var(--accent); border-color:var(--accent); }
+  .copy.done { color:var(--good); border-color:var(--good); background:var(--goodbg); }
+  .err { color:var(--bad); margin-top:12px; font-weight:500; }
+  .empty { color:var(--good); font-weight:600; margin:14px 0 0; }
+  input[type=search] { padding:9px 12px; border:1px solid var(--line-strong); border-radius:8px; background:var(--card); color:var(--text); min-width:280px; font:inherit; }
+
+  .banner { position:relative; overflow:hidden; display:flex; justify-content:space-between; align-items:center; gap:20px; flex-wrap:wrap;
+    background:linear-gradient(100deg,#0f1a3a 0%,#1b3a8a 55%,#3a2f8f 100%); color:#fff; border-radius:14px; padding:26px 30px; margin-bottom:28px; box-shadow:var(--shadow); }
+  .banner::before, .banner::after { content:""; position:absolute; border-radius:50%; background:rgba(255,255,255,.07); pointer-events:none; }
+  .banner::before { width:190px; height:190px; right:70px; bottom:-110px; }
+  .banner::after { width:230px; height:230px; right:-60px; top:-120px; }
+  .banner > * { position:relative; z-index:1; }
+  .banner h2 { color:#fff; font-size:21px; font-weight:700; margin:0 0 4px; letter-spacing:-.01em; }
+  .banner .date { color:rgba(255,255,255,.75); font-size:13px; }
+  .banner .clock { text-align:right; }
+  .banner .time { font-size:32px; font-weight:700; letter-spacing:.02em; color:#c9d3ff; font-variant-numeric:tabular-nums; line-height:1.1; }
+  .banner .iso { color:rgba(255,255,255,.7); font-size:12px; font-variant-numeric:tabular-nums; }
+  tr.grp td, tbody tr.grp:hover td { background:var(--accent-soft); color:var(--accent); font-weight:700; font-size:13px; letter-spacing:.02em; border-bottom:1px solid var(--line-strong); }
+  tr.grp .gmeta { color:var(--muted); font-weight:500; margin-left:10px; font-size:12px; letter-spacing:0; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:0 0 14px; }
+  .chip { background:var(--card); color:var(--muted); border:1px solid var(--line-strong); border-radius:999px; padding:6px 14px; font-size:13px; font-weight:600; }
+  .chip:hover:not(:disabled) { background:var(--accent-soft); color:var(--accent); border-color:var(--accent); }
+  .chip.active, .chip.active:hover:not(:disabled) { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .chip small { font-weight:500; opacity:.8; margin-left:4px; font-size:12px; }
+  td.none { text-align:center; color:var(--muted); padding:22px; }
+  body { min-height:100vh; display:flex; flex-direction:column; }
+  main { width:100%; flex:1; }
+  .creator { background:var(--card); border-top:1px solid var(--line); box-shadow:0 -1px 2px rgba(15,27,45,.04); padding:20px 24px; }
+  .creator-in { max-width:1120px; margin:0 auto; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
+  .creator .label { color:var(--muted); font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; }
+  .creator .cname { font-size:16px; font-weight:700; letter-spacing:-.005em; }
+  .creator .dept { color:var(--muted); font-size:13px; margin-top:2px; }
+  .creator .social { display:flex; gap:10px; }
+  .creator .social a { width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:var(--head); border:1px solid var(--line-strong); color:var(--muted); transition:all .15s ease; }
+  .creator .social a:hover { color:#fff; border-color:transparent; }
+  .creator .social a.li:hover { background:#0a66c2; }
+  .creator .social a.fb:hover, .creator .social a.fbp:hover { background:#1877f2; }
+  .creator .social a.yt:hover { background:#ff0000; }
+  .creator .social svg { width:18px; height:18px; fill:currentColor; }
   .hidden { display:none; }
 </style>
 </head>
 <body>
 <main>
-  <h1>QC Checker</h1>
-  <p class="sub">Upload your Excel file to automatically identify unmatched data. A time difference of up to ±1 Second will be acceptable</p>
+  <div class="banner">
+    <div>
+      <h2>Welcome back</h2>
+      <div class="date" id="bDate"></div>
+    </div>
+    <div class="clock">
+      <div class="time" id="bTime"></div>
+      <div class="iso" id="bIso"></div>
+    </div>
+  </div>
+
 
   <div class="card">
     <div class="drop" id="drop">Drop your Excel file here, or click to choose (.xlsx / .xls / .csv)</div>
     <input type="file" id="file" accept=".xlsx,.xlsm,.xls,.csv" class="hidden">
     <div class="row">
-      <span id="fname" style="color:var(--muted)">No file selected</span>
-      <label style="color:var(--muted)">Allowed difference (± sec)
-        <input type="number" id="tol" value="1" min="0" style="width:64px;padding:6px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text)">
+      <span id="fname" class="fname">No file selected</span>
+      <label class="lbl">Allowed difference (± sec)
+        <input type="number" id="tol" class="tol" value="1" min="0">
       </label>
       <button id="run" disabled>Check durations</button>
     </div>
@@ -64,10 +145,11 @@
 
     <div class="card">
       <h2>Not Matched</h2>
-      <div class="row" style="margin:0 0 10px">
+      <div class="row tight">
         <input type="search" id="q" placeholder="Search ad name…">
         <button class="ghost" id="dl">Download as Excel</button>
       </div>
+      <div class="chips" id="types"></div>
       <div class="tablewrap"><table>
         <thead><tr><th>H = Ad_Name</th><th class="num">In name</th><th class="num">G = duration</th><th class="num">Times</th><th>Status</th></tr></thead>
         <tbody id="nm"></tbody>
@@ -77,7 +159,7 @@
 
     <div class="card hidden" id="nosufBox">
       <h2>No duration found in the ad name</h2>
-      <p style="color:var(--muted);margin-top:0">These names don’t end with “-digits”, so they can’t be compared.</p>
+      <p class="hint">These names don’t end with “-digits”, so they can’t be compared.</p>
       <div class="tablewrap"><table>
         <thead><tr><th>Row</th><th>H = Ad_Name</th><th class="num">G = duration</th></tr></thead>
         <tbody id="nosuf"></tbody></table></div>
@@ -90,13 +172,50 @@
         <tbody id="bad"></tbody></table></div>
     </div>
   </div>
+
 </main>
+<footer class="creator">
+  <div class="creator-in">
+    <div>
+      <div class="label">Created by</div>
+      <div class="cname">MD. Shaon Istiak Sumon</div>
+      <div class="dept">Computer Science Engineering</div>
+      <div class="dept">Uttara University</div>
+    </div>
+    <div class="social">
+      <a class="li" href="https://www.linkedin.com/in/sha0n24/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" title="LinkedIn">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0z"/></svg>
+      </a>
+      <a class="fb" href="https://www.facebook.com/shaonistiaks2" target="_blank" rel="noopener noreferrer" aria-label="Facebook" title="Facebook">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.69.24 2.69.24v2.97h-1.52c-1.49 0-1.96.93-1.96 1.88v2.26h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07z"/></svg>
+      </a>
+      <a class="fbp" href="https://www.facebook.com/renderrootsbd" target="_blank" rel="noopener noreferrer" aria-label="Facebook Page" title="Facebook Page">
+        <svg viewBox="0 0 448 512" aria-hidden="true"><path d="M64 32C28.7 32 0 60.7 0 96V416c0 35.3 28.7 64 64 64h98.2V334.2H109.4V256h52.8V222.3c0-87.1 39.4-127.5 125-127.5c16.2 0 44.2 3.2 55.7 6.4V172c-6-.6-16.5-1-29.6-1c-42 0-58.2 15.9-58.2 57.2V256h83.6l-14.4 78.2H255V480H384c35.3 0 64-28.7 64-64V96c0-35.3-28.7-64-64-64H64z"/></svg>
+      </a>
+      <a class="yt" href="https://www.youtube.com/@renderrootsbd" target="_blank" rel="noopener noreferrer" aria-label="YouTube" title="YouTube">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+      </a>
+    </div>
+  </div>
+</footer>
 
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const norm = s => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
-let file = null, result = null;
+let file = null, result = null, activeType = 'All';
+
+// ---------- banner clock ----------
+function tickClock(){
+  const d = new Date();
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  const p = n => String(n).padStart(2, '0');
+  const day = d.toLocaleDateString('en-GB', { weekday:'long', day:'2-digit', month:'long', year:'numeric' }).replace(/^(\w+),?\s/, '$1, ');
+  $('bDate').textContent = day + (tz ? ' — ' + tz : '');
+  $('bTime').textContent = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  $('bIso').textContent = `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+tickClock(); setInterval(tickClock, 1000);
 
 // ---------- file picking ----------
 function setFile(f){ file = f || null; $('fname').textContent = f ? f.name : 'No file selected'; $('run').disabled = !f; $('err').textContent = ''; }
@@ -121,15 +240,19 @@ function analyse(rows, tol){       // rows = array of arrays, rows[0] = header
   const header = rows[0] || [];
   let nameIdx = header.findIndex(h => norm(h) === 'adname');
   let durIdx  = header.findIndex(h => norm(h) === 'duration');
+  let typeIdx = header.findIndex(h => norm(h) === 'adtype');
+  if (typeIdx < 0) typeIdx = 3;    // column D
   if (nameIdx < 0) nameIdx = 7;    // column H
   if (durIdx  < 0) durIdx  = 6;    // column G
   if (header.length <= Math.max(nameIdx, durIdx)) throw new Error('Could not find the Ad_Name (H) and duration (G) columns.');
 
-  const out = { matched:0, notMatched:[], noSuffix:[], badDur:[] };
+  const out = { matched:0, notMatched:[], noSuffix:[], badDur:[], adTypes:new Set() };
   for (let i = 1; i < rows.length; i++){
     const r = rows[i] || [];
     const name = String(r[nameIdx] ?? '').trim();
     if (!name) continue;
+    const adType = String(r[typeIdx] ?? '').trim() || 'Unknown';
+    out.adTypes.add(adType);
     const excelRow = i + 1;
     const raw = r[durIdx] ?? '';
     const m = name.match(/-\s*(\d+)\s*$/);       // digits after the LAST hyphen, at the very end
@@ -138,34 +261,60 @@ function analyse(rows, tol){       // rows = array of arrays, rows[0] = header
     const actual = toSeconds(raw);
     if (actual === null){ out.badDur.push({row:excelRow, name, dur:raw}); continue; }
     if (Math.abs(actual - inName) <= tol) out.matched++;     // within ± tolerance = matched
-    else out.notMatched.push({row:excelRow, name, inName, dur:actual, status:'wrong'});
+    else out.notMatched.push({row:excelRow, name, adType, inName, dur:actual, status:'wrong'});
   }
   // group identical ad names (ignores extra spaces and upper/lower case)
   const groups = new Map();
   for (const x of out.notMatched){
-    const key = x.name.replace(/\s+/g, ' ').toLowerCase();
-    if (!groups.has(key)) groups.set(key, { name:x.name, inName:x.inName, count:0, durs:new Map(), rows:[] });
+    const key = x.adType.toLowerCase() + '||' + x.name.replace(/\s+/g, ' ').toLowerCase();
+    if (!groups.has(key)) groups.set(key, { name:x.name, adType:x.adType, inName:x.inName, count:0, durs:new Map(), rows:[] });
     const g = groups.get(key);
     g.count++; g.rows.push(x.row);
     g.durs.set(x.dur, (g.durs.get(x.dur) || 0) + 1);
   }
-  out.groups = [...groups.values()].sort((a, b) => b.count - a.count);   // most repeated first
+  out.groups = [...groups.values()].sort((a, b) =>
+    (a.adType === 'Unknown') - (b.adType === 'Unknown') || a.adType.localeCompare(b.adType) || b.count - a.count);   // by Ad_Type (D), then most repeated first
+  // a name that appears only once is flagged "maybe wrong" (could be a one-off typo or a real one-off ad)
+  out.groups.forEach(g => g.status = g.count === 1 ? 'maybe wrong' : 'wrong');
+  out.maybeCount = out.groups.filter(g => g.status === 'maybe wrong').length;
   out.total = out.matched + out.notMatched.length + out.noSuffix.length + out.badDur.length;
   return out;
 }
 
 // ---------- rendering ----------
+const copyBtn = name => `<button class="copy" data-copy="${esc(name)}" title="Copy ad name">Copy</button>`;
+const nameCell = (name, extra = '') => `<div class="namecell"><div>${esc(name)}${extra}</div>${copyBtn(name)}</div>`;
+
 function renderNM(filter = ''){
   const f = filter.toLowerCase();
-  const rows = result.groups.filter(g => g.name.toLowerCase().includes(f));
-  $('nm').innerHTML = rows.map(g => {
+  const rows = result.groups.filter(g => g.name.toLowerCase().includes(f) && (activeType === 'All' || g.adType === activeType));
+  let html = '', current = null;
+  const typeStats = {};
+  rows.forEach(g => { const t = typeStats[g.adType] ||= { ads:0, times:0 }; t.ads++; t.times += g.count; });
+  for (const g of rows){
+    if (g.adType !== current){
+      current = g.adType;
+      const t = typeStats[current];
+      html += `<tr class="grp"><td colspan="5">${esc(current)}<span class="gmeta">${t.ads} unique ad${t.ads > 1 ? 's' : ''} · ${t.times} time${t.times > 1 ? 's' : ''}</span></td></tr>`;
+    }
     const durs = [...g.durs].map(([d, c]) => c > 1 ? `${d} (×${c})` : `${d}`).join(', ');
     const shown = g.rows.slice(0, 20).join(', ') + (g.rows.length > 20 ? ', …' : '');
-    return `<tr><td>${esc(g.name)}<div style="color:var(--muted);font-size:12px">Rows: ${shown}</div></td>
+    const maybe = g.status === 'maybe wrong';
+    html += `<tr class="${maybe ? 'maybe-row' : ''}"><td>${nameCell(g.name, `<div class="rows">Rows: ${shown}</div>`)}</td>
       <td class="num">${g.inName}</td><td class="num">${esc(durs)}</td>
-      <td class="num"><b>${g.count}</b></td><td><span class="tag">wrong</span></td></tr>`;
-  }).join('');
+      <td class="num"><b>${g.count}</b></td><td><span class="tag ${maybe ? 'maybe' : ''}">${g.status}</span></td></tr>`;
+  }
+  if (!rows.length && result.notMatched.length) html = '<tr><td colspan="5" class="none">No mismatches for this selection.</td></tr>';
+  $('nm').innerHTML = html;
   $('allgood').classList.toggle('hidden', result.notMatched.length !== 0);
+}
+function renderChips(){
+  const counts = {};
+  result.notMatched.forEach(x => counts[x.adType] = (counts[x.adType] || 0) + 1);
+  const types = [...result.adTypes].sort((a, b) => (a === 'Unknown') - (b === 'Unknown') || a.localeCompare(b));
+  const chip = (label, count, val) =>
+    `<button class="chip ${val === activeType ? 'active' : ''}" data-type="${esc(val)}">${esc(label)}<small>${count}</small></button>`;
+  $('types').innerHTML = chip('All', result.notMatched.length, 'All') + types.map(t => chip(t, counts[t] || 0, t)).join('');
 }
 function render(){
   const r = result;
@@ -173,13 +322,32 @@ function render(){
     <div class="stat"><b>${r.total}</b><span>Ads checked</span></div>
     <div class="stat good"><b>${r.matched}</b><span>Matched</span></div>
     <div class="stat bad"><b>${r.notMatched.length}</b><span>Not matched (${r.groups.length} unique names)</span></div>
-    <div class="stat warn"><b>${r.noSuffix.length + r.badDur.length}</b><span>Could not compare</span></div>`;
+    <div class="stat warn"><b>${r.noSuffix.length + r.badDur.length}</b><span>Could not compare</span></div>
+    <div class="stat maybe"><b>${r.maybeCount}</b><span>Maybe wrong (appear only once)</span></div>`;
+  renderChips();
   renderNM($('q').value);
-  const simple = a => a.map(x => `<tr><td>${x.row}</td><td>${esc(x.name)}</td><td class="num">${esc(x.dur)}</td></tr>`).join('');
+  const simple = a => a.map(x => `<tr><td>${x.row}</td><td>${nameCell(x.name)}</td><td class="num">${esc(x.dur)}</td></tr>`).join('');
   $('nosufBox').classList.toggle('hidden', !r.noSuffix.length); $('nosuf').innerHTML = simple(r.noSuffix);
   $('badBox').classList.toggle('hidden', !r.badDur.length);     $('bad').innerHTML  = simple(r.badDur);
   $('results').classList.remove('hidden');
 }
+
+// ---------- copy buttons ----------
+async function copyText(text){
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) {                                   // fallback for file:// or older browsers
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+  }
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('button.copy');
+  if (!b) return;
+  await copyText(b.dataset.copy);
+  b.textContent = 'Copied'; b.classList.add('done');
+  setTimeout(() => { b.textContent = 'Copy'; b.classList.remove('done'); }, 1200);
+});
 
 // ---------- run ----------
 $('run').onclick = async () => {
@@ -191,19 +359,26 @@ $('run').onclick = async () => {
     const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:false, defval:'' });
     const tol = Math.max(0, parseInt($('tol').value, 10) || 0);
     result = analyse(rows, tol);
+    activeType = 'All';
     render();
   } catch (e) { $('err').textContent = e.message || String(e); }
 };
 $('q').oninput = e => renderNM(e.target.value);
+$('types').addEventListener('click', e => {
+  const b = e.target.closest('.chip');
+  if (!b) return;
+  activeType = b.dataset.type;
+  renderChips(); renderNM($('q').value);
+});
 
 // ---------- export ----------
 $('dl').onclick = () => {
   const data = result.groups.map(g => ({
-    'H=Ad_Name': g.name, 'Duration in name': g.inName,
+    'D=Ad_Type': g.adType, 'H=Ad_Name': g.name, 'Duration in name': g.inName,
     'G=duration': [...g.durs].map(([d, c]) => c > 1 ? `${d} (x${c})` : `${d}`).join(', '),
-    'Times': g.count, 'Excel Rows': g.rows.join(', '), 'Status': 'wrong' }));
+    'Times': g.count, 'Excel Rows': g.rows.join(', '), 'Status': g.status }));
   const ws = XLSX.utils.json_to_sheet(data);
-  ws['!cols'] = [{wch:70},{wch:16},{wch:18},{wch:8},{wch:40},{wch:10}];
+  ws['!cols'] = [{wch:18},{wch:70},{wch:16},{wch:18},{wch:8},{wch:40},{wch:12}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Not Matched');
   XLSX.writeFile(wb, 'not_matched.xlsx');
